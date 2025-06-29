@@ -1,47 +1,67 @@
-Audio Deepfake Detection Pipeline Overview (Detailed Version)
+Audio Deepfake Detection Pipeline Overview (Updated, June 2025)
 ============================================================
 
 1. Data Loading and Preparation
 ------------------------------
-- **Dataset Structure**: The script uses four dataset types: `for-2sec`, `for-norm`, `for-original`, and `for-rerec`. Each type contains a `training` and `testing` directory, each with `fake` and `real` subfolders.
+- **Dataset Structure**: The pipeline uses four dataset types: `for-2sec`, `for-norm`, `for-original`, and `for-rerec`. Each type contains a `training` and `testing` directory, each with `fake` and `real` subfolders. This ensures a diverse set of audio conditions and sources for robust model training.
 - **Balanced Sampling**: For each dataset type, the script samples an equal number of `fake` and `real` audio files for both training and testing. By default: 3,000 training samples (1,500 fake, 1,500 real) and 750 testing samples (375 fake, 375 real) per type. File paths are collected using `glob` for all common audio formats (`.wav`, `.mp3`, `.flac`, `.m4a`).
-- **Label Assignment**: Labels are assigned based on the parent directory: `fake` → 0, `real` → 1.
-- **Shuffling and Overlap Checking**: The file lists and labels are shuffled to randomize the order. The script checks for any overlap between training and validation sets, both by file path and by audio content hash, to ensure strict separation.
+- **Label Assignment**: Labels are assigned based on the parent directory: `fake` → 0, `real` → 1. This is handled automatically during data collection.
+- **Shuffling and Overlap Checking**: The file lists and labels are shuffled to randomize the order. The script checks for any overlap between training and validation sets, both by file path and by audio content hash, to ensure strict separation and prevent data leakage.
 
-2. Feature Extraction
+2. Feature Extraction and Preprocessing
+---------------------------------------
+- **Raw Audio Waveform Input**: The current pipeline uses the raw audio waveform as the input feature, discarding all previous feature engineering steps (no Mel spectrogram, MFCC, or spectral contrast). This approach leverages the model's ability to learn relevant features directly from the waveform.
+- **Audio Loading**: Each audio file is loaded using `librosa` at a sample rate of 16,000 Hz. If the file is longer than 2 seconds, it is cropped; if shorter, it is zero-padded to exactly 2 seconds (32,000 samples). Stereo files are converted to mono by averaging channels.
+- **Normalization**: Each audio sample is normalized to the range [-1, 1] by dividing by the maximum absolute value. Then, per-sample normalization is applied: each sample is standardized to zero mean and unit variance. This prevents data leakage and ensures consistent input for the model.
+- **Label Encoding**: Labels are one-hot encoded using `to_categorical`, resulting in `y_train` and `y_val` arrays suitable for categorical cross-entropy loss.
+- **Data Augmentation (Optional)**: The pipeline supports data augmentation for training data, including adding random Gaussian noise and random time shifts. This is currently set to zero (no augmentation), but can be enabled to improve generalization.
+- **Debugging and Validation**: The script prints and plots statistics (mean, std, min, max) for a few samples from each class. It checks for NaN or infinite values in the data and prints class distributions for both training and validation sets.
+
+3. Model Architecture
 ---------------------
-- **Audio Loading**: Each audio file is loaded using `librosa` at a sample rate of 16,000 Hz. If the file is longer than 2 seconds, a random 2-second segment is selected. If shorter, it is zero-padded.
-- **Feature Computation**: For each audio file, the following features are extracted:
-  - Mel Spectrogram: 128 Mel bins, converted to dB scale.
-  - MFCCs: 13 coefficients.
-  - Spectral Contrast: 6 bands (to avoid Nyquist error).
-  - All features are computed for 109 time steps (padded or cropped as needed).
-- **Feature Map Construction**: The three feature matrices are concatenated vertically, resulting in a feature map of shape (147, 109). The feature map is expanded to (147, 109, 1) to match the input requirements of the CNN.
+- **1D Convolutional Neural Network (1D CNN)**: The model is a deep 1D CNN designed to process raw audio waveforms. The architecture includes:
+  - Multiple Conv1D layers with increasing filter sizes (32, 64, 128), each followed by MaxPooling1D for temporal downsampling.
+  - Flattening of the feature maps, followed by dense layers (128 and 64 units) with ReLU activations and dropout for regularization.
+  - A final dense layer with softmax activation for binary classification (fake/real).
+- **Input Shape**: The model expects input of shape `(32000, 1)` (2 seconds of audio at 16kHz, with a single channel).
+- **Compilation**: The model is compiled with the Adam optimizer, categorical cross-entropy loss, and accuracy as the primary metric.
 
-3. Data Preprocessing
----------------------
-- **Stacking**: All feature maps for the training and testing sets are stacked into numpy arrays: `X_train` and `X_val`.
-- **Label Encoding**: Labels are one-hot encoded using `to_categorical`, resulting in `y_train` and `y_val`.
-- **Normalization**: Each sample in `X_train` and `X_val` is normalized independently to zero mean and unit variance (per-sample normalization).
-- **Data Augmentation (Training Only)**: A fraction (default 10%) of training samples are augmented by:
-  - Adding random Gaussian noise.
-  - Applying a random time shift (horizontal shift in the time axis).
-  Augmented samples are concatenated with the original training data and shuffled.
-- **Debugging and Validation**: The script prints and plots statistics (mean, std, min, max) for a few samples from each class. It checks for NaN or infinite values in the data.
-
-4. Model Training
------------------
-- **Model Architecture**: The model is created using the `create_improved_model` function (defined externally). The input shape is set to (147, 109, 1). The number of output classes is 2 (fake, real).
-- **Training Process**: The model is trained on `X_train` and `y_train`, validated on `X_val` and `y_val`. Batch size is set to 32. Training uses callbacks:
+4. Training Process
+-------------------
+- **Training/Validation Split**: The pipeline uses a strict split between training and validation/testing data, with no overlap by file path or audio content.
+- **Callbacks**: Training uses several callbacks for robust model development:
   - Early stopping (monitors validation accuracy, restores best weights).
-  - Learning rate reduction on plateau.
-  - Model checkpointing (saves model after each epoch).
-  - Custom epoch logger (logs metrics to a text file).
+  - Learning rate reduction on plateau (reduces LR if validation loss plateaus).
+  - Model checkpointing (saves model after each epoch, with epoch number and validation accuracy in the filename).
+  - Custom epoch logger (logs metrics to a text file for later analysis).
+- **Batch Size and Epochs**: Training uses a batch size of 32 and up to 150 epochs, with early stopping to prevent overfitting.
 - **Progress Monitoring**: Training and validation accuracy/loss are logged and plotted. The script prints the class distribution and feature statistics for both training and validation sets.
 
-5. Evaluation and Saving
-------------------------
-- **Model Evaluation**: After training, the script plots the training history (accuracy and loss curves). The trained model is saved as `fake_or_real_classifier.h5`. The final validation accuracy is printed.
-- **Predictions**: The script prints the first 10 model predictions (softmax outputs), predicted classes, and true classes for the validation set.
+5. Evaluation and Model Saving
+------------------------------
+- **Model Evaluation**: After training, the script plots the training history (accuracy and loss curves) and saves the plot as `training_history_new_dataset.png`. The trained model is saved as `fake_or_real_classifier.h5`. The final validation accuracy is printed.
+- **Predictions**: The script prints the first 10 model predictions (softmax outputs), predicted classes, and true classes for the validation set for quick inspection.
 
-End of Detailed Pipeline Overview
+6. Model Testing and Comparison
+-------------------------------
+- **Testing Script**: The pipeline includes a dedicated script, `test_all_models.py`, for evaluating all saved models (from each epoch and the final model) on any directory of audio files.
+- **How It Works**:
+  - The script automatically finds all model files matching the pattern `model_epoch_*.h5` and the final model `fake_or_real_classifier.h5`.
+  - For each model, it loads the model and tests it on all audio files in the specified directory (supports `.wav`, `.mp3`, `.flac`, `.m4a`).
+  - Each audio file is preprocessed in the same way as during training (raw waveform, normalization, padding/cropping).
+  - The script outputs, for each model: the number of files predicted as fake/real, average confidence, and a summary table.
+  - It also analyzes prediction consistency across models, highlighting files where models disagree.
+  - Detailed results are saved to a timestamped CSV file for further analysis.
+- **Usage Example**:
+  ```bash
+  python3 test_all_models.py --audio_dir /path/to/test_audio --output_dir model_test_results
+  ```
+  This will test all models on the audio files in `/path/to/test_audio` and save results in the specified output directory.
+
+7. Generalization and Best Practices
+------------------------------------
+- **Strict Data Separation**: The pipeline enforces strict separation between training and validation/testing data, both by file path and by audio content hash, to ensure that reported validation accuracy reflects true generalization.
+- **Model Selection**: By testing all saved models on a holdout or real-world dataset, you can select the best-performing model based on actual performance, not just validation accuracy.
+- **Further Improvements**: The pipeline can be extended with additional data augmentation, more advanced architectures (e.g., attention, transformers), or ensembling for even better generalization.
+
+End of Updated Pipeline Overview
