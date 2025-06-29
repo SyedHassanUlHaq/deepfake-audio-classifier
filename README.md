@@ -15,7 +15,7 @@ This project provides a robust pipeline for detecting deepfake (synthetic) audio
 ## Installation
 1. Clone the repository:
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/SyedHassanUlHaq/deepfake-audio-classifier.git
    cd audio-deepfake-detection
    ```
 2. Install dependencies:
