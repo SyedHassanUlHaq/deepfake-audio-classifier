@@ -1,0 +1,13 @@
+Epoch log
+Epoch 1: accuracy: 0.6791, loss: 0.5901, val_accuracy: 0.7240, val_loss: 0.5400, learning_rate: 0.0010
+Epoch 2: accuracy: 0.7937, loss: 0.4292, val_accuracy: 0.7393, val_loss: 0.5091, learning_rate: 0.0010
+Epoch 3: accuracy: 0.8723, loss: 0.2874, val_accuracy: 0.6683, val_loss: 0.7432, learning_rate: 0.0010
+Epoch 4: accuracy: 0.9227, loss: 0.1862, val_accuracy: 0.7013, val_loss: 0.7725, learning_rate: 0.0010
+Epoch 5: accuracy: 0.9493, loss: 0.1334, val_accuracy: 0.6230, val_loss: 0.9680, learning_rate: 0.0010
+Epoch 6: accuracy: 0.9593, loss: 0.1072, val_accuracy: 0.6190, val_loss: 1.8903, learning_rate: 0.0010
+Epoch 7: accuracy: 0.9706, loss: 0.0833, val_accuracy: 0.6670, val_loss: 1.0427, learning_rate: 0.0010
+Epoch 8: accuracy: 0.9795, loss: 0.0545, val_accuracy: 0.6793, val_loss: 1.2634, learning_rate: 0.0005
+Epoch 9: accuracy: 0.9869, loss: 0.0394, val_accuracy: 0.6633, val_loss: 1.4419, learning_rate: 0.0005
+Epoch 10: accuracy: 0.9851, loss: 0.0438, val_accuracy: 0.6897, val_loss: 1.1934, learning_rate: 0.0005
+Epoch 11: accuracy: 0.9880, loss: 0.0376, val_accuracy: 0.7087, val_loss: 1.6793, learning_rate: 0.0005
+Epoch 12: accuracy: 0.9870, loss: 0.0400, val_accuracy: 0.6523, val_loss: 1.4362, learning_rate: 0.0005

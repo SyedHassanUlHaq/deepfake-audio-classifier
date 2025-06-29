@@ -1,0 +1,47 @@
+Audio Deepfake Detection Pipeline Overview (Detailed Version)
+============================================================
+
+1. Data Loading and Preparation
+------------------------------
+- **Dataset Structure**: The script uses four dataset types: `for-2sec`, `for-norm`, `for-original`, and `for-rerec`. Each type contains a `training` and `testing` directory, each with `fake` and `real` subfolders.
+- **Balanced Sampling**: For each dataset type, the script samples an equal number of `fake` and `real` audio files for both training and testing. By default: 3,000 training samples (1,500 fake, 1,500 real) and 750 testing samples (375 fake, 375 real) per type. File paths are collected using `glob` for all common audio formats (`.wav`, `.mp3`, `.flac`, `.m4a`).
+- **Label Assignment**: Labels are assigned based on the parent directory: `fake` → 0, `real` → 1.
+- **Shuffling and Overlap Checking**: The file lists and labels are shuffled to randomize the order. The script checks for any overlap between training and validation sets, both by file path and by audio content hash, to ensure strict separation.
+
+2. Feature Extraction
+---------------------
+- **Audio Loading**: Each audio file is loaded using `librosa` at a sample rate of 16,000 Hz. If the file is longer than 2 seconds, a random 2-second segment is selected. If shorter, it is zero-padded.
+- **Feature Computation**: For each audio file, the following features are extracted:
+  - Mel Spectrogram: 128 Mel bins, converted to dB scale.
+  - MFCCs: 13 coefficients.
+  - Spectral Contrast: 6 bands (to avoid Nyquist error).
+  - All features are computed for 109 time steps (padded or cropped as needed).
+- **Feature Map Construction**: The three feature matrices are concatenated vertically, resulting in a feature map of shape (147, 109). The feature map is expanded to (147, 109, 1) to match the input requirements of the CNN.
+
+3. Data Preprocessing
+---------------------
+- **Stacking**: All feature maps for the training and testing sets are stacked into numpy arrays: `X_train` and `X_val`.
+- **Label Encoding**: Labels are one-hot encoded using `to_categorical`, resulting in `y_train` and `y_val`.
+- **Normalization**: Each sample in `X_train` and `X_val` is normalized independently to zero mean and unit variance (per-sample normalization).
+- **Data Augmentation (Training Only)**: A fraction (default 10%) of training samples are augmented by:
+  - Adding random Gaussian noise.
+  - Applying a random time shift (horizontal shift in the time axis).
+  Augmented samples are concatenated with the original training data and shuffled.
+- **Debugging and Validation**: The script prints and plots statistics (mean, std, min, max) for a few samples from each class. It checks for NaN or infinite values in the data.
+
+4. Model Training
+-----------------
+- **Model Architecture**: The model is created using the `create_improved_model` function (defined externally). The input shape is set to (147, 109, 1). The number of output classes is 2 (fake, real).
+- **Training Process**: The model is trained on `X_train` and `y_train`, validated on `X_val` and `y_val`. Batch size is set to 32. Training uses callbacks:
+  - Early stopping (monitors validation accuracy, restores best weights).
+  - Learning rate reduction on plateau.
+  - Model checkpointing (saves model after each epoch).
+  - Custom epoch logger (logs metrics to a text file).
+- **Progress Monitoring**: Training and validation accuracy/loss are logged and plotted. The script prints the class distribution and feature statistics for both training and validation sets.
+
+5. Evaluation and Saving
+------------------------
+- **Model Evaluation**: After training, the script plots the training history (accuracy and loss curves). The trained model is saved as `fake_or_real_classifier.h5`. The final validation accuracy is printed.
+- **Predictions**: The script prints the first 10 model predictions (softmax outputs), predicted classes, and true classes for the validation set.
+
+End of Detailed Pipeline Overview
