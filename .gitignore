@@ -1,0 +1,7 @@
+deepfake/*
+.vscode/*
+__pycache__/
+*.pyc
+*.h5
+*.csv
+*.txt
